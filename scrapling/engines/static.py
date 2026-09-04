@@ -19,6 +19,7 @@ from scrapling.core._types import (
     Unpack,
     Optional,
     Awaitable,
+    ProxyType,
     SUPPORTED_HTTP_METHODS,
     FollowRedirects,
 )
@@ -227,7 +228,8 @@ class _SyncSessionLogic(_ConfigurationLogic):
         stealth = self._stealth if stealth is None else stealth
 
         selector_config = self._get_param(kwargs, "selector_config", self.selector_config) or self.selector_config
-        max_retries = self._get_param(kwargs, "retries", self._default_retries)
+        # Always attempt the request once; `retries` below 1 (or `None`) means "send it, but don't retry"
+        max_retries = max(1, self._get_param(kwargs, "retries", self._default_retries) or 1)
         retry_delay = self._get_param(kwargs, "retry_delay", self._default_retry_delay)
         static_proxy = kwargs.pop("proxy", None)
 
@@ -244,10 +246,11 @@ class _SyncSessionLogic(_ConfigurationLogic):
 
         try:
             for attempt in range(max_retries):
+                proxy: Optional[ProxyType]
                 if self._proxy_rotator and static_proxy is None:
                     proxy = self._proxy_rotator.get_proxy()
                 else:
-                    proxy = static_proxy
+                    proxy = static_proxy or self._default_proxy
 
                 request_args = self._merge_request_args(stealth=stealth, proxy=proxy, **kwargs)
                 try:
@@ -441,7 +444,8 @@ class _ASyncSessionLogic(_ConfigurationLogic):
         stealth = self._stealth if stealth is None else stealth
 
         selector_config = self._get_param(kwargs, "selector_config", self.selector_config) or self.selector_config
-        max_retries = self._get_param(kwargs, "retries", self._default_retries)
+        # Always attempt the request once; `retries` below 1 (or `None`) means "send it, but don't retry"
+        max_retries = max(1, self._get_param(kwargs, "retries", self._default_retries) or 1)
         retry_delay = self._get_param(kwargs, "retry_delay", self._default_retry_delay)
         static_proxy = kwargs.pop("proxy", None)
 
@@ -461,10 +465,11 @@ class _ASyncSessionLogic(_ConfigurationLogic):
         try:
             # Determine if we should use proxy rotation
             for attempt in range(max_retries):
+                proxy: Optional[ProxyType]
                 if self._proxy_rotator and static_proxy is None:
                     proxy = self._proxy_rotator.get_proxy()
                 else:
-                    proxy = static_proxy
+                    proxy = static_proxy or self._default_proxy
 
                 request_args = self._merge_request_args(stealth=stealth, proxy=proxy, **kwargs)
                 try:
